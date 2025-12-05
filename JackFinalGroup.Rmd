@@ -1,0 +1,581 @@
+---
+title: "Airline Satisfaction Report"
+author: "Jeffrey Fernandez, Jack Keaveny, and Alex Qiu"
+date: "2024-12-15"
+output:
+  html_document: 
+    theme: flatly
+    highlight: tango
+    number_sections: no
+    toc: true
+    toc_depth: 3
+    toc_float: true
+  pdf_document:
+    theme: cerulean
+    highlight: tango
+    number_sections: yes
+    toc: yes
+    toc_depth: 3
+---
+
+```{r, echo =FALSE, out.width="100%"}
+bfcolor <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    sprintf("\\textcolor{%s}{\\textbf{%s}}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'><b>%s</b></span>", color, x)
+  } else x
+}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# INCLUDE if necessary
+# knitr::include_graphics("download-1.jpg")
+```
+
+
+# Abstract
+
+This data given by an airline organization. The actual name of the company is not given due to various purposes.The dataset consists of the details of customers who have already flown with them. The feedback of the customers on various context and their flight data has been consolidated.
+
+The main purpose of this dataset is to predict whether a future customer would be satisfied with their service given the details of the other parameters values. Also the airlines need to know on which aspect of the services offered by them have to be emphasized more to generate more satisfied customers.
+
+## Variable Breakdown
+
+
+* **satisfaction**: (Categorical) Indicates whether the customer was satisfied or dissatisfied with their flight experience.
+* **Gender**: (Categorical) Gender of the customer (Male/Female).
+* **Customer.Type**: (Categorical) Indicates whether the customer is a Loyal Customer or a Disloyal Customer.
+* **Age**: (Numeric) Age of the customer in years.
+* **Type.of.Travel**: (Categorical) Purpose of the travel (Business travel/Personal travel).
+* **Class**: (Categorical) Travel class (Business/Eco/Eco Plus).
+* **Flight.Distance**: (Numeric) Distance of the flight in miles.
+* **Seat.comfort**: (Numeric) Rating of seat comfort on a scale (1 to 5).
+* **Departure.Arrival.time.convenient**: (Numeric) Rating of convenience of departure/arrival time (1 to 5).
+* **Food.and.drink**: (Numeric) Rating of food and drink quality on the flight (1 to 5).
+* **Gate.location**: (Numeric) Rating of the gate location's convenience (1 to 5).
+* **Inflight.wifi.service**: (Numeric) Rating of the inflight Wi-Fi service quality (1 to 5).
+* **Inflight.entertainment**: (Numeric) Rating of inflight entertainment options (1 to 5).
+* **Online.support**: (Numeric) Rating of the airline's online support (1 to 5).
+* **Ease.of.Online.booking**: (Numeric) Rating of the ease of online booking process (1 to 5).
+* **On.board.service**: (Numeric) Rating of onboard service quality (1 to 5).
+* **Leg.room.service**: (Numeric) Rating of leg room space (1 to 5).
+* **Baggage.handling**: (Numeric) Rating of baggage handling efficiency (1 to 5).
+* **Checkin.service**: (Numeric) Rating of the check-in service (1 to 5).
+* **Cleanliness**: (Numeric) Rating of the cleanliness of the airplane (1 to 5).
+* **Online.boarding**: (Numeric) Rating of the online boarding process (1 to 5).
+* **Departure.Delay.in.Minutes**: (Numeric) Duration of departure delay in minutes.
+* **Arrival.Delay.in.Minutes**: (Numeric) Duration of arrival delay in minutes.
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+library(FactoMineR)
+library(factoextra)
+library(cluster)
+library(caret)
+library(readr)
+library(ggplot2)
+library(ggpubr)
+library(corrplot)
+library(psych)
+library(dplyr)
+library(gridExtra)
+library(reshape2)
+
+airline_data <- read.csv("C:/Users/Jack Keaveny/Downloads/airline_customer_satisfaction.csv")
+
+# Count the number of NA values in each column
+na_counts <- colSums(is.na(airline_data))
+
+# Create a data frame for visualization
+na_data <- data.frame(
+  Column = names(na_counts),
+  NA_Count = as.numeric(na_counts)
+)
+
+na_data
+
+airline_data$satisfaction <- factor(
+  airline_data$satisfaction,
+  levels = c("satisfied", "dissatisfied") # Specify the desired order
+)
+```
+No Na Data, No major Cleaning needed, all columns hold value to some degree, satisfaction factores for ease of graphing. 
+
+# Descriptive Analytics
+
+## 1) Distribution of Satisfaction By age?
+
+```{r}
+ggplot(airline_data, aes(Age, fill = satisfaction)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Satisfaction Frequency by Age",
+       x = "Age")+
+  scale_fill_manual(
+    values = c("satisfied" = "steelblue", "dissatisfied" = "maroon") # Custom colors
+  ) +
+  theme_minimal()
+```
+
+## 2) -	How does satisfaction vary by gender, travel class, or customer type?
+```{r}
+p1 = ggplot(airline_data, aes(x = satisfaction, fill = satisfaction)) +
+  geom_bar() + 
+  labs( x= "", y = "Count") + 
+  scale_x_discrete(labels = c("Satisfied", "Not Satisfied")) + 
+  scale_fill_manual(
+    values = c("satisfied" = "steelblue", "dissatisfied" = "maroon") # Set custom colors
+  ) +
+  ggtitle("Customer Satisfaction By Gender") + 
+  theme_minimal() +
+  theme(legend.position = "none")+
+  facet_wrap(~ Gender)
+
+p2 = ggplot(airline_data, aes(x = factor(satisfaction), fill = factor(satisfaction))) +
+  geom_bar() + 
+  labs(x= "", y = "Count", fill = "Satisfaction") + 
+  scale_x_discrete(labels = c("Satisfied", "Not Satisfied")) + 
+  scale_fill_manual(
+    values = c("satisfied" = "steelblue", "dissatisfied" = "maroon") # Set custom colors
+  ) +
+  ggtitle("Customer Satisfaction By Travel Type") + 
+  theme_minimal() +
+  theme(legend.position = "none")+
+  facet_wrap(~ Type.of.Travel)
+
+p3 = ggplot(airline_data, aes(x = factor(satisfaction), fill = factor(satisfaction))) +
+  geom_bar() + 
+  labs(x = "Satisfaction", y = "Count", fill = "Satisfaction") + 
+  scale_x_discrete(labels = c("Satisfied", "Not Satisfied")) + 
+  scale_fill_manual(
+    values = c("satisfied" = "steelblue", "dissatisfied" = "maroon") # Set custom colors
+  ) +
+  ggtitle("Customer Satisfaction By Customer Type") + 
+  theme_minimal() +
+  theme(legend.position = "none")+
+  facet_wrap(~ Customer.Type)
+
+grid.arrange(p1, p2, p3,  nrow = 3)
+
+
+```
+
+
+## 3) -	What percentage of customers are classified as satisfied or dissatisfied?
+```{r}
+satisfaction_counts <- airline_data %>%
+  group_by(satisfaction) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = Count / sum(Count) * 100)
+
+
+
+# Plot with percentage labels
+ggplot(satisfaction_counts, aes(x = factor(satisfaction), y = Count, fill = factor(satisfaction))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(Percentage, 1), "%")), vjust = -0.5, size = 4) + # Add percentage labels
+  labs(
+    x = "Satisfaction",
+    y = "Count",
+    fill = "Satisfaction",
+    title = "Customer Satisfaction Distribution"
+  ) +
+  scale_x_discrete(labels = c("Satisfied", "Not Satisfied")) +
+  scale_fill_manual(
+    values = c("satisfied" = "steelblue", "dissatisfied" = "maroon") # Set custom colors
+  ) +
+  theme_minimal()
+```
+
+
+## 4) -	Which services have the highest and lowest ratings?
+```{r}
+# 2. Which services have the highest and lowest ratings?
+service_ratings = colMeans(airline_data[, c("Inflight.wifi.service", "Inflight.entertainment", "Online.support", "On.board.service", "Leg.room.service", "Checkin.service", "Baggage.handling")], na.rm = TRUE)
+
+avg_data <- data.frame(
+  Column = names(service_ratings),
+  Average = as.numeric(service_ratings)
+)
+
+ggplot(avg_data, aes(x = reorder(Column, -Average), y = Average, fill = Column)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Average Values of Service Columns",
+    x = "Service",
+    y = "Average"
+  ) +
+  geom_text(aes(label = round(Average, 2)), vjust = -0.5, size = 4) +
+  ylim(0, 4) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Highest Service Rating for the Airline is **Baggage Handling** with a score of 3.7 and the lowest is **Inflight Wifi** with 3.2. With only a .5 spread of average ratings amongst all service columns we can see the airline is fairly consistent in their reviews.
+
+
+
+
+# Exploratory Analytics/PCA
+
+## 1) Which variables are most correlated with overall satisfaction?
+
+## 2)	How does travel class (economy, business, etc.) influence service perception?
+
+## 3)	Are frequent flyers more or less satisfied compared to occasional travelers?
+
+## 4)	Which variables are most correlated with overall satisfaction?
+
+
+
+```{r}
+# check numeric variables
+numeric_cols = airline_data[, sapply(airline_data, is.numeric)]
+
+filtered_data <- numeric_cols%>%
+  dplyr::select(-Age, -Flight.Distance, -Departure.Delay.in.Minutes, -Arrival.Delay.in.Minutes)
+
+str(filtered_data)
+
+#  standardize  data
+standardized_data = scale(filtered_data)
+
+# Perform PCA
+pca = PCA(standardized_data, graph = FALSE)
+summary(pca)
+
+# Eigenvalues
+eigenvalues = get_eigenvalue(pca)
+print(eigenvalues)
+
+# Scree Plot
+fviz_eig(pca, addlabels = TRUE, ylim = c(0, 50))
+
+# Variable contributions to pca
+fviz_pca_var(pca, col.var = "cos2", gradient.cols = c("red", "blue", "green"), repel = TRUE)
+```
+
+
+
+```{r}
+# PCA variable contributions
+var = get_pca_var(pca)
+head(var$coord)
+head(var$contrib)
+head(var$cos2)
+
+# Top contributors to PC1 and PC2
+fviz_contrib(pca, choice = "var", axes = 1, top = 10) + ggtitle("Top Contributors to PC1")
+fviz_contrib(pca, choice = "var", axes = 2, top = 10) + ggtitle("Top Contributors to PC2")
+```
+
+```{r}
+# Correlation Plot of cos2 values
+corrplot(var$cos2, is.corr = FALSE)
+
+```
+
+```{r}
+# K-means clustering on PCA variable loadings
+res.km = kmeans(var$coord, centers = 3, nstart = 25)
+grp = as.factor(res.km$cluster)
+
+# Visualize PCA with clusters
+fviz_pca_var(pca, col.var = grp, palette = c("red", "blue", "green"), legend.title = "Cluster", repel = TRUE)
+```
+
+```{r}
+# Biplot of individuals and variables
+fviz_pca_biplot(pca, geom = "point", repel = TRUE, col.var = "black", col.ind = "lightblue")
+
+
+```
+
+
+
+
+```{r}
+# PCA results for individuals
+pca_data = as.data.frame(pca$ind$coord)
+
+# K-means clustering on individuals
+set.seed(123)
+kmeans_result = kmeans(pca_data[, 1:2], centers = 3, nstart = 25)
+pca_data$Cluster = factor(kmeans_result$cluster)
+
+# Visualize clusters
+ggplot(pca_data, aes(x = Dim.1, y = Dim.2, color = Cluster)) + geom_point() + ggtitle("K-Means Clustering on PCA Results") + xlab("Principal Component 1") + ylab("Principal Component 2")
+```
+
+```{r}
+# Visualize clustering with ellipses
+fviz_pca_ind(pca, geom.ind = "point", col.ind = pca_data$Cluster, palette = c("red", "blue", "green"), addEllipses = TRUE, legend.title = "Cluster Groups")
+
+```
+
+```{r}
+# Correlation matrix
+cor_matrix = cor(filtered_data)
+
+# Correlation visualization
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", tl.cex = 0.6, addCoef.col = "black", number.cex = .4)
+```
+
+
+
+```{r}
+#################################################################################
+# Exploratory Analysis
+# 1. Which variables are most correlated with overall satisfaction?
+var = get_pca_var(pca)
+print(var$contrib)  # Contribution of variables
+fviz_pca_var(pca, col.var = "contrib", gradient.cols = c("blue", "green", "red"))
+
+# 2. How does travel class influence service perception?
+pca_data$Type.of.Travel = airline_data$Type.of.Travel
+ggplot(pca_data, aes(x = Dim.1, y = Dim.2, color = Type.of.Travel)) + geom_point() + ggtitle("PCA Clusters by Travel Class")
+```
+
+
+
+
+```{r}
+#################################################################################
+# Comparative Analysis
+# 1. Are there significant differences in satisfaction between men and women?
+# Convert the satisfaction column to binary 1 or 0 for satisfied or not
+airline_data$satisfaction_binary = ifelse(airline_data$satisfaction == "satisfied", 1, 0)
+t_test = t.test(satisfaction_binary ~ Gender, data = airline_data)
+print(t.test)
+
+# 2. How does satisfaction compare between domestic and international flights?
+airline_data$satisfaction_binary = ifelse(airline_data$satisfaction == "satisfied", 1, 0)
+ggplot(airline_data, aes(x = Type.of.Travel, fill = factor(satisfaction_binary))) + geom_bar(position = "fill") + scale_fill_manual(values = c("red", "green"), labels = c("Dissatisfied", "Satisfied")) + labs(x = "Flight Type", y = "Proportion", fill = "Satisfaction") + ggtitle("Satisfaction by Flight Type (Domestic vs International)") + theme_minimal()
+```
+
+
+## Cluster Analysis (Jack)
+
+
+### 1. What groups of customers with similar characteristics can be identified?
+
+
+This question can best be answered by conducting a cluster analysis. Given that we've done the preparation work and creation of our clusters earlier, we can reuse what we've already done and analyze once again.
+
+
+```{r}
+# Recreating and visualizing our clusters
+
+kmeans_result = kmeans(pca_data[, c("Dim.1", "Dim.2")], centers = 3, nstart = 25)
+pca_data$Cluster = as.factor(kmeans_result$cluster)
+ggplot(pca_data, aes(x = Dim.1, y = Dim.2, color = Cluster)) + geom_point() + ggtitle("Customer Clusters")
+
+```
+
+```{r}
+# Add Cluster information to the original dataset
+airline_data$Cluster <- pca_data$Cluster
+
+# Summarizing the makeup of clusters
+cluster_summary <- airline_data %>%
+  group_by(Cluster) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+print(cluster_summary)
+```
+
+
+Here we can see the three clusters that our data is split into, as well as the average demographic information of these customer clusters to better understand the group characteristics.
+
+Our first cluster contains slightly longer distance flight customers with low seat comfort, flight departure/arrival time convenience, and food ratings. The second cluster is marked by low in-flight entertainment, online support, inflight wifi service, online booking ease, onboard service and legroom service ratings, among others. Most notably, this group has a very low satisfaction rating on average, which aligns with the other low ratings across the board. The thrid cluster is more similar to the first, except with higher inflight entertainment, seat comfort, food and drink, and departure/arrival time convenience ratings.
+
+
+### 2. What are the main differences between satisfied and dissatisfied customer groups?
+
+
+Upon looking at our cluster summary, it was clear that the second cluster was far less satisfied with their airline experience than the other two clusters. Let's look at some of the key variables that underlie this satisfaction difference.
+
+
+```{r}
+# Selecting the relevant features from the dataset (determin)
+features_for_comparison <- airline_data %>%
+  select(Inflight.wifi.service, Inflight.entertainment, Online.support,
+         Ease.of.Online.booking, On.board.service, Food.and.drink, Gate.location, Leg.room.service, Online.support,
+         Baggage.handling, Checkin.service, Cleanliness, Online.boarding,
+         Departure.Delay.in.Minutes, Arrival.Delay.in.Minutes, Cluster)
+
+# Reshaping the data into a long format
+features_long <- features_for_comparison %>%
+  pivot_longer(cols = -Cluster, names_to = "Feature", values_to = "Rating")
+
+# Computing the average rating for each feature and cluster once again
+avg_features_by_cluster <- features_long %>%
+  group_by(Cluster, Feature) %>%
+  summarise(Avg_Rating = mean(Rating), .groups = "drop")
+
+# Creating our parallel coordinate plot
+ggplot(avg_features_by_cluster, aes(x = Feature, y = Avg_Rating, group = Cluster, color = factor(Cluster))) +
+  geom_line(alpha = 0.7, size = 1) +
+  labs(
+    title = "Average Feature Ratings Across Clusters",
+    x = "Features",
+    y = "Average Rating",
+    color = "Cluster"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for readability
+
+```
+
+
+As we can now see visually, the second cluster consistently has much lower scores in almost all of the major in-flight accommodation ratings such as leg room and entertainment, as well as the online experience. It is also worth noting that these customers experienced delayed departures and arrivals more often than our satisifed customer clusters.
+
+
+### 3. How does customer loyalty vary across clusters?
+
+
+I'm curious to see the customer loyalty makeup of our clusters. I imagine the the second, mostly dissatisfied cluster will have a lower proportion of loyal customers, but I'm curious to see if our first and third clusters have any significant difference and what this may say about the groups in our data.
+
+
+```{r}
+# Stacked bar chart of Customer Loyalty by Cluster
+ggplot(airline_data, aes(x = factor(Cluster), fill = Customer.Type)) +
+  geom_bar(position = "fill") +  # "fill" normalizes to proportions
+  labs(
+    title = "Proportion of Loyal and Disloyal Customers by Cluster",
+    x = "Cluster",
+    y = "Proportion",
+    fill = "Customer Type"
+  ) +
+  scale_fill_manual(values = c("Loyal Customer" = "blue", "disloyal Customer" = "red")) + 
+  theme_classic()
+
+```
+
+
+As we can observe here, our second cluster of mostly dissatisfied individuals is made up of a smaller proportion of loyal customers than our other two clusters. This was expected and aligns with our earlier findings. Our first and third clusters essentially have the same proportion of loyal and disloyal customers, meaning that there are no groups that have high satisfaction with low customer loyalty, proving the importance of this variable.
+
+
+```{r}
+#################################################################################
+# Service-Specific Analysis
+# 1. Which service has the most significant impact on satisfaction? (PC1)
+fviz_contrib(pca, choice = "var", axes = 1, top = 10)
+
+# 2. What service improvements would have the greatest effect on satisfaction?
+top_services = var$contrib[, 1]
+print(sort(top_services, decreasing = TRUE))
+
+
+```
+
+
+## Recommendation Analysis (Jack)
+
+
+### 1. Which customer groups should be the primary focus?
+
+
+As we've seen already, loyal customers are far more satisfied than non-loyal customers on average, so we will need to convert these non-loyal customers by creating a better experience for them. We also know from our previous analysis that male, personal travelers tend to be highly dissatisfied with their travel experience. But would it be more profitable for the company to cater to the needs of these demographics, or should the company continue to cater more to business travelers? 
+
+
+```{r}
+# Calculating the count of travelers and the count of loyal customers
+combined_data <- airline_data %>%
+  group_by(Type.of.Travel, Customer.Type) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Proportion = ifelse(Customer.Type == "Loyal Customer", Count / sum(Count[Type.of.Travel == Type.of.Travel]), 0))
+
+# Plotting total counts for business/personal travelers with proportion of loyal customers
+ggplot(combined_data, aes(x = Type.of.Travel, y = Count, fill = Customer.Type)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Travelers by Type of Travel with Loyal Customers Proportion",
+       x = "Type of Travel", y = "Count") +
+  scale_fill_manual(values = c("Loyal Customer" = "skyblue", "disloyal Customer" = "lightgrey")) +
+  theme_minimal() +
+  theme(legend.title = element_blank())  # Remove legend title for better readability
+
+
+```
+
+
+From this graph, we can see that a staggering number of personal travelers already happen to be loyal customers, which means we can count on them returning to the airline despite the low satisfaction rating. Instead, it would be more beneficial to use resources to convert business travelers into loyal customers by aiming to improve the satisfaction rating. Business travelers also make up a much higher count of the total customer base, which is another reason to prioritize them.
+
+
+### 2. How should the airline improve satisfaction ratings for business travelers?
+
+
+Now that we have our target market identified, let's look at which variables correlate the strongest with satisfaction specifically for business travelers.
+
+
+```{r}
+# Filtering for business travelers
+business_travelers <- airline_data %>%
+  filter(Type.of.Travel == "Business travel")
+
+# Select numeric columns and Satisfaction Rating
+numeric_data <- business_travelers %>%
+  select_if(is.numeric) %>%
+  select(-satisfaction_binary)
+
+# Calculating the correlation matrix with Satisfaction Rating
+correlation_matrix <- cor(cbind(numeric_data, Satisfaction = business_travelers$satisfaction_binary))
+
+# Reshape the correlation matrix to plot
+correlation_data <- melt(correlation_matrix)
+
+# Heatmap of correlations between numeric variables for business travelers
+ggplot(correlation_data, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  theme_minimal() +
+  labs(title = "Heatmap of Numeric Variables for Business Travelers",
+       x = "Variables", y = "Variables") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+As can be observed from this heatmap, the variables that have the highest correlation with satisfaction for business travelers are online boarding, cleanliness, check-in service, baggage handling, legroom, onboard service, ease of online booking, online support, inflight entertainment, inflight wifi service, and seat comfort. 
+
+Specifically, ease of online booking and inflight entertainment appear to be the most important for this type of traveler. I suggest that the airline increases the number of movies/shows available to watch on board, and simplifies the website to make it easier to book flights. Online support is also quite high in importance, so improving the overall online experience will be very beneficial for the company.
+
+
+### 3. How should the airline seek to improve the experience for younger people?
+
+
+As we saw earlier, younger people are overall less satisfied with their inflight experience than older people are. It is crucial to target a younger audience, given that they are likely not yet a loyal customers of any airline, and securing them would mean greater future business for the airline. I'm going to create another correlation matrix for individuals 30 and under to see which elements are most important to them. 
+
+
+```{r}
+# Filtering for travelers aged 30 and under
+young_travelers <- airline_data %>%
+  filter(Age <= 30)  # Assuming 'Age' is the variable for the traveler's age
+
+# Select numeric columns and satisfaction
+numeric_data1 <- young_travelers %>%
+  select_if(is.numeric) %>%
+  select(-satisfaction_binary)  
+
+# Correlation matrix
+correlation_matrix <- cor(cbind(numeric_data1, Satisfaction = young_travelers$satisfaction_binary))
+
+# Reshaping correlation matrix for plotting
+correlation_data <- melt(correlation_matrix)
+
+# Heatmap of correlations for travelers 30 and under
+ggplot(correlation_data, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  theme_minimal() +
+  labs(title = "Heatmap for Ages 30 and Under",
+       x = "Variables", y = "Variables") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+Once again, inflight entertainment is the most important to this demographic meaning that the company should immediately seek to improve this aspect of the in-flight experience. The online experience is also once again very important, so this should be refined as soon as possible as well.
+
+Compared to our previous correlation matrix, travelers 30 and under care a bit more about inflight wifi, food and drink, and seat comfort so in order to specifically target this audience, these should all be looked at and sdjusted as well.
